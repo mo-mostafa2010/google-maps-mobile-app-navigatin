@@ -1,16 +1,9 @@
-//import 'dart:ffi';
-//import 'dart:html';
-//import 'package:permission/permission.dart';
-//import 'package:dio/dio.dart';
-import 'dart:ffi';
-
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
-//import 'package:google_map_polyline/google_map_polyline.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 //import 'package:google_maps_controller/google_maps_controller.dart';
 //import 'package:geolocator/geolocator.dart';
 
@@ -29,9 +22,10 @@ class Data {
 class GoogleMapScreen extends StatefulWidget {
   final double lat;
   final double long;
-  GoogleMapScreen(this.lat, this.long);
+  final String ip;
+  GoogleMapScreen(this.lat, this.long, this.ip);
   @override
-  _GoogleMapScreenState createState() => _GoogleMapScreenState(lat, long);
+  _GoogleMapScreenState createState() => _GoogleMapScreenState(lat, long, ip);
 }
 
 class _GoogleMapScreenState extends State<GoogleMapScreen> {
@@ -42,26 +36,28 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
   //List<LatLng> routeCoords=[];
   //GoogleMapPolyline googleMapPolyline = new GoogleMapPolyline(apiKey: "AIzaSyB4_eF-2kgyM_i4l2HICBeWDonF3Su1bjQ");
   double lat;
+  String ip;
   double long;
   double? newlat;
   double? newlong;
 
-  _GoogleMapScreenState(this.lat, this.long);
+  _GoogleMapScreenState(this.lat, this.long, this.ip);
   List<Marker> allMarkers = [];
-
-  /*getsomepoints({newLat,newLong}) async{
-    var permissions = await Permission.getPermissionsStatus([PermissionName.Location]);
-    if (permissions[0].permissionStatus == PermissionStatus.notAgain){
-      var askpermissions = await Permission.requestPermissions([PermissionName.Location]);
-    } else {
-      routeCoords = await googleMapPolyline.getCoordinatesWithLocation(
-        origin: LatLng(lat,long),
-        destination: LatLng(newLat?.lat+0.2,newLong?.long),
-        mode: RouteMode.driving
-      );
-    }
-
-  }*/
+  PolylinePoints polylinePoints = PolylinePoints();
+  Map<PolylineId, Polyline> polylines = {};
+  
+  addPolyLine(List<LatLng> polylineCoordinates) {
+    PolylineId id = PolylineId("poly");
+    //Completer<GoogleMapController> _controller = Completer();
+    Polyline polyline = Polyline(
+      polylineId: id,
+      color: Colors.blueAccent,
+      points: polylineCoordinates,
+      width: 8,
+    );
+    polylines[id] = polyline;
+    setState(() {});
+  }
 
   @override
   void initState() {
@@ -94,6 +90,24 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
       },
     ));
   }
+  void getPolyline(latfinal, lngfinal) async {
+    List<LatLng> polylineCoordinates = [];
+
+    PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
+      'AIzaSyB4_eF-2kgyM_i4l2HICBeWDonF3Su1bjQ',
+      PointLatLng(lat, long),
+      PointLatLng(latfinal, lngfinal),
+      travelMode: TravelMode.driving,
+    );
+    if (result.points.isNotEmpty) {
+      result.points.forEach((PointLatLng point) {
+        polylineCoordinates.add(LatLng(point.latitude, point.longitude));
+      });
+    } else {
+      print(result.errorMessage);
+    }
+    addPolyLine(polylineCoordinates);
+  }
   Future<String> fetchData(lat, long, newLat, newLong) async {
     final response = await http.get(Uri.parse(
         'https://maps.googleapis.com/maps/api/directions/json?origin=$lat,$long&destination=$newLat,$newLong&key=AIzaSyB4_eF-2kgyM_i4l2HICBeWDonF3Su1bjQ'));
@@ -102,7 +116,7 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
     return response.body;
   }
   Future<Data> postData(String body) async {
-    print('dsds');
+    //print('dsds');
     print(body);
     final response = await http.post(
       Uri.parse('http://10.2.153.120:5000/users'),
@@ -114,7 +128,7 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
       }),
     );
       if (response.statusCode == 201) {
-        print('hellooooo');
+        //print('hellooooo');
         return Data.fromJson(jsonDecode(response.body));
         } else {
           throw Exception('falied to sent the data');
@@ -125,7 +139,9 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
 
 void foo(lat, long, newLat, newLong) async {
   final user = await fetchData(lat, long, newLat, newLong);
+  getPolyline(newLat, newLong);
   postData(user);
+  print(ip);
 }
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,10 +150,13 @@ void foo(lat, long, newLat, newLong) async {
           GoogleMap(
             //onMapCreated: onMapCreated,
             //polylines: polyline,
+            polylines: Set<Polyline>.of(polylines.values),
             initialCameraPosition: CameraPosition(
                 target: LatLng(lat, long), zoom: 12.0), //camera position
             mapType: MapType.normal,
             markers: Set.from(allMarkers),
+            //onMapCreated: (GoogleMapController controller){
+              //_controller.complete(controller);
           ),
           Align(
             alignment: Alignment.bottomCenter,
@@ -145,7 +164,7 @@ void foo(lat, long, newLat, newLong) async {
               padding: const EdgeInsets.only(top: 12),
               child: ElevatedButton(
                   onPressed: () => foo(lat, long, newlat, newlong),
-                  child: Text('press heree')),
+                  child: Text('Start')),
             ),
           )
 

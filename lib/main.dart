@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:async';
 import 'package:app/screens/google_map_screen.dart';
+//import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(MyApp());
@@ -11,7 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Google Map',
+      title: 'Home Page',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // This is the theme of your application.
@@ -25,35 +28,64 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primaryColor: Colors.white,
       ),
-      home: LocationonApp(),
+      home: MyHomePage(),
     );
   }
 }
 
-class LocationonApp extends StatefulWidget {
+class Data {
+  final String number;
+
+  Data({required this.number});
+
+  factory Data.fromJson(Map<String, dynamic> json) {
+    return Data(
+      number: json['plate'],
+    );
+  }
+}
+class MyHomePage extends StatefulWidget {
   @override
-  _LocationonAppState createState() => _LocationonAppState();
+  _MyHomePageState createState() => _MyHomePageState();
 }
 
-class _LocationonAppState extends State<LocationonApp> {
-  var locationMessage = "";
-  var lat ;
-  var long;  
-  void getCurrentLocation() async {
-    var position = await Geolocator.getCurrentPosition (desiredAccuracy: LocationAccuracy.high);
-    var lastPosition = await Geolocator.getLastKnownPosition();
-    print (position);
-    print(lastPosition); 
-     lat = position.latitude;
-     long = position.longitude;
-    print("$lat , $long");
+class _MyHomePageState extends State<MyHomePage> {
 
-
-    setState(() {
-      locationMessage = "Latitude : $lat , Logitude : $long";
-    }); 
+  var number;
+  final numberCon = new TextEditingController();
+  
+  Future<Data> postData(String number) async {
+    final response = await http.get(
+      Uri.parse('https://lanechangebackend.azurewebsites.net/api/getVehicledata/$number')
+     );
+     
+     
+  if (response.statusCode == 201) {
+    // If the server did return a 201 CREATED response,
+    // then parse the JSON.
+    print('helooooo');
+    print(jsonDecode(response.body));
+    return Data.fromJson(jsonDecode(response.body));
+  } else {
+    // If the server did not return a 201 CREATED response,
+    // then throw an exception.
+    throw Exception('Failed to create album.');
   }
+}
+Future<String> fetchData(number) async {
+  final response = await http.get(Uri.parse(
+      'https://lanechangebackend.azurewebsites.net/api/getVehicledata/${number.text}'));
+  //print ('https://maps.googleapis.com/maps/api/directions/json?origin=$lat,$long&destination=$newLat,$newLong&key=AIzaSyB4_eF-2kgyM_i4l2HICBeWDonF3Su1bjQ');
 
+  return response.body;
+}
+
+
+void makeCall(nummber) async {
+  final vehicle = await fetchData(number);
+  print(jsonDecode(vehicle)['vehicle']);
+  Navigator.push(context,MaterialPageRoute(builder: (context) => GoogleMapScreen(jsonDecode(vehicle)['vehicle']['lat'].toDouble(), jsonDecode(vehicle)['vehicle']['Lng'].toDouble(), jsonDecode(vehicle)['vehicle']['ip'])));
+}
   @override
   Widget build( BuildContext context) {
     return Scaffold(
@@ -63,45 +95,28 @@ class _LocationonAppState extends State<LocationonApp> {
       body: Center(
         // Center is a layout widget. It takes a single child and positions it
         // in the middle of the parent.
-        child: Column(
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
 
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'Google Map Demo',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold
-              )
-            ),
-            SizedBox(
-              height: 10.0,
-            ),
-           
-            SizedBox(height: 20,),
-            Text ("Position : $locationMessage"),
-            ElevatedButton(
-              onPressed: (){
-                getCurrentLocation();
-              },
-              child: Text('Get Current Location'),              
-            ),
-
-
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => GoogleMapScreen(lat,long),
+          //mainAxisAlignment: MainAxisAlignment.center,
+          //crossAxisAlignment: CrossAxisAlignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              TextField(
+                controller: numberCon,
+                decoration: InputDecoration(
+                  hintText: 'Enter plate number'
+                ),
+              ),
+              ElevatedButton(onPressed: () { number = numberCon;
+              makeCall(number);},
+              child: Text('Send'),
+              ),
+            ],
           ),
         ),
-        tooltip: 'Increment',
-        child: Icon(Icons.pin_drop_outlined),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+
+    ));// This trailing comma makes auto-formatting nicer for build methods
   }
 }
